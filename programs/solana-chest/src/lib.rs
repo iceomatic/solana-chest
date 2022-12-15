@@ -4,7 +4,7 @@ use anchor_spl::associated_token::{self, AssociatedToken, Create};
 
 // This is your program's public key and it will update
 // automatically when you build the project.
-declare_id!("9JsNvQjgaPovfyYy62vcm17HFCczsfBURvnXDQQrHUuB");
+declare_id!("CKBZ7U5CWFnUohedMMRhSiK1xzEbcC3j6G9dxsbqmtJW");
 
 #[program]
 mod solana_chest {
@@ -80,6 +80,7 @@ pub struct CreateATA<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub rent: Sysvar<'info, Rent>,
 }
+
 
 #[account]
 pub struct ChestPda {

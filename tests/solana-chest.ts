@@ -177,8 +177,10 @@ const mintInfo = await getMint(
       test_user
     ]).rpc()
     console.log("TX: " + tx_ata.toString())
-    await connection.confirmTransaction(tx)
-    console.log(await connection.getAccountInfo(new_token_account))
+    await connection.confirmTransaction(tx_ata)
+    const ata_account_info = await connection.getParsedAccountInfo(new_token_account);
+    console.log(ata_account_info.value.data)
+  
   })
 
 });
