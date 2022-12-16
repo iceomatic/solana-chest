@@ -8,8 +8,10 @@ declare_id!("CKBZ7U5CWFnUohedMMRhSiK1xzEbcC3j6G9dxsbqmtJW");
 
 #[program]
 mod solana_chest {
+    use anchor_spl::token::Transfer;
+
     use super::*;
-    pub fn create_chest(ctx: Context<CreateChest>) -> Result<()> {
+    pub fn create_chest(ctx: Context<CreateChest>, bump: u8) -> Result<()> {
         let nft_token_account = &ctx.accounts.nft_token_account;
         let nft_mint = &ctx.accounts.nft_mint;
         let user = &ctx.accounts.user;
@@ -18,6 +20,7 @@ mod solana_chest {
         assert_eq!(nft_token_account.mint, nft_mint.key());
         require_eq!(nft_token_account.amount, 1, MyError::TokenFungible);
         
+        ctx.accounts.new_account.bump = bump;
 
         Ok(())
     }
@@ -38,6 +41,21 @@ mod solana_chest {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         associated_token::create(cpi_ctx)
     }
+    pub fn withdraw_token(ctx: Context<WithdrawToken>) -> Result<()> {
+        let transfer_account_info = Transfer {
+            from: ctx.accounts.from_token_account.to_account_info(),
+            to: ctx.accounts.to.to_account_info(),
+            authority: ctx.accounts.from_account.to_account_info()
+        };
+        let seeds = &[
+            b"chest",
+            ctx.accounts.from_token_account.mint.as_ref(),
+            &[ctx.accounts.from_account.bump]
+        ];
+        let signer_seeds = &[&seeds[..]];
+        let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), transfer_account_info, signer_seeds);
+        anchor_spl::token::transfer(cpi_ctx, 1)
+    }
 }
 
 
@@ -46,7 +64,7 @@ pub struct CreateChest<'info> {
     // We must specify the space in order to initialize an account.
     // First 8 bytes are default account discriminator,
     // (u64 = 64 bits unsigned integer = 8 bytes)
-    #[account(init, seeds = [b"chest", nft_token_account.mint.as_ref()], bump, payer = user, space=8+8)]
+    #[account(init, seeds = [b"chest", nft_token_account.mint.as_ref()], bump, payer = user, space=8+1)]
     pub new_account: Account<'info, ChestPda>,
 
     #[account(mut)]
@@ -78,12 +96,43 @@ pub struct CreateATA<'info> {
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub rent: Sysvar<'info, Rent>,
+    pub rent: Sysvar<'info, Rent>
 }
 
+#[derive(Accounts)]
+pub struct WithdrawToken<'info> {
+    #[account(mut, seeds=[b"chest",chest_key.mint.as_ref()], bump)]
+    from_account: Account<'info, ChestPda>,
+
+    #[account(mut, token::mint = token_mint)]
+    from_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        init,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub to: Account<'info, TokenAccount>,
+
+    #[account()]
+    pub token_mint: Account<'info, Mint>,
+
+    #[account(owner = signer.key())]
+    pub chest_key: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>
+}
 
 #[account]
 pub struct ChestPda {
+    bump: u8
 }
 
 #[error_code]
